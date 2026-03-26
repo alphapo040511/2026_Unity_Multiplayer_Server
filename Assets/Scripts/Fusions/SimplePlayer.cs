@@ -5,6 +5,13 @@ public class SimplePlayer : NetworkBehaviour
     [SerializeField] private float moveSpeed = 5f;
     [SerializeField] private float rotateSpeed = 10f;
 
+    [Header("Bullet")]
+    [SerializeField] private NetworkPrefabRef bulletPrefab;
+    [SerializeField] private Transform firePoint;
+
+    [Networked] private TickTimer FireCoolDown { get; set; }
+    [SerializeField] private float fireInterval = 0.2f;
+
     public override void FixedUpdateNetwork()
     {
         if(GetInput<FusionBootstrap.NetworkInputData>(out var inputData))
@@ -26,6 +33,39 @@ public class SimplePlayer : NetworkBehaviour
                     rotateSpeed * Runner.DeltaTime
                 );
             }
+        }
+
+        // น฿ป็ 
+        if(inputData.buttons.IsSet((int)FusionBootstrap.InputButton.Fire))
+        {
+            if (FireCoolDown.ExpiredOrNotRunning(Runner))
+            {
+                Fire();
+                FireCoolDown = TickTimer.CreateFromSeconds(Runner, fireInterval);
+            }
+        }
+    }
+
+    private void Fire()
+    {
+        if (!Object.HasStateAuthority)
+            return;
+
+        Vector3 spawnPos = firePoint != null
+            ? firePoint.position
+            : transform.position + transform.forward + Vector3.up * 0.5f;
+
+        Quaternion spawnRot = transform.rotation;
+
+        NetworkObject bulletObj = Runner.Spawn(bulletPrefab,
+            spawnPos,
+            spawnRot,
+            Object.InputAuthority);
+
+        SimpleBullet bullet = bulletObj.GetComponent<SimpleBullet>();
+        if(bullet != null)
+        {
+            bullet.Init(Object.InputAuthority);
         }
     }
 }
