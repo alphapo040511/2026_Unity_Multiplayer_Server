@@ -9,21 +9,24 @@ public class SimplePlayer : NetworkBehaviour
     [SerializeField] private NetworkPrefabRef bulletPrefab;
     [SerializeField] private Transform firePoint;
 
+    [SerializeField] private float fireDistance = 20f;
+    [SerializeField] private LayerMask hitMask;
+
     [Networked] private TickTimer FireCoolDown { get; set; }
     [SerializeField] private float fireInterval = 0.2f;
 
     public override void FixedUpdateNetwork()
     {
-        if(GetInput<FusionBootstrap.NetworkInputData>(out var inputData))
+        if (GetInput<FusionBootstrap.NetworkInputData>(out var inputData))
         {
             Vector3 move = new Vector3(inputData.move.x, 0f, inputData.move.y);
 
-            if(move.sqrMagnitude > 1f)
+            if (move.sqrMagnitude > 1f)
                 move.Normalize();
 
             transform.position += move * moveSpeed * Runner.DeltaTime;
 
-            if(move.sqrMagnitude > 0.001f)
+            if (move.sqrMagnitude > 0.001f)
             {
                 Quaternion targetRatation = Quaternion.LookRotation(move, Vector3.up);
 
@@ -36,11 +39,11 @@ public class SimplePlayer : NetworkBehaviour
         }
 
         // 발사 
-        if(inputData.buttons.IsSet((int)FusionBootstrap.InputButton.Fire))
+        if (inputData.buttons.IsSet((int)FusionBootstrap.InputButton.Fire))
         {
             if (FireCoolDown.ExpiredOrNotRunning(Runner))
             {
-                Fire();
+                FireLagCompensated();
                 FireCoolDown = TickTimer.CreateFromSeconds(Runner, fireInterval);
             }
         }
@@ -63,9 +66,51 @@ public class SimplePlayer : NetworkBehaviour
             Object.InputAuthority);
 
         SimpleBullet bullet = bulletObj.GetComponent<SimpleBullet>();
-        if(bullet != null)
+        if (bullet != null)
         {
             bullet.Init(Object.InputAuthority);
         }
+    }
+
+    private void FireLagCompensated()
+    {
+        if (!Object.HasStateAuthority)
+            return;
+
+        Vector3 origin = firePoint != null ? firePoint.position : transform.position + Vector3.up * 0.5f;
+        Vector3 direction = transform.forward;
+
+        // Runner -> NetworkRunner -> 게임의 네트워크 전체를 관리하는 관리자
+        if (Runner.LagCompensation.Raycast(
+            origin,
+            direction,
+            fireDistance,
+            Object.InputAuthority,
+            out LagCompensatedHit hit,
+            hitMask
+            ))
+        {
+            Debug.Log($"LagComp Hit : {hit.Hitbox.name}");
+            RPC_PlayHitEffect(hit.Point, hit.Normal);
+            Hitbox hitbox = hit.Hitbox;
+            if (hitbox != null)
+            {
+                HealthTarget target = hitbox.GetComponentInParent<HealthTarget>();
+                if (target != null)
+                {
+                    target.TakeDamage(1);
+                }
+                {
+
+                }
+            }
+        }
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_PlayHitEffect(Vector3 pos, Vector3 normal)
+    {
+        if (EffectManager.instance == null) return;
+        EffectManager.instance.PlayWorldEffect(EffectManager.instance.HitEffect, pos, normal);
     }
 }

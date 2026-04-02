@@ -32,7 +32,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     public void StartHost() => _ = StartGame(GameMode.Host);
     public void StartClient() => _ = StartGame(GameMode.Client);
 
-    private Vector3 GetSpanwPosition(PlayerRef player)
+    private Vector3 GetSpawnPosition(PlayerRef player)
     {
         if(spawnPoints != null && spawnPoints.Length > 0)
         {
@@ -86,10 +86,10 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     {
         Debug.Log($"플레이어 입장 : {player}");
 
-        if (runner.IsPlayer == false)
+        if (runner.IsServer == false)
             return;
 
-        Vector3 spawnPos = GetSpanwPosition(player);
+        Vector3 spawnPos = GetSpawnPosition(player);
 
          var obj = runner.Spawn(
             playerPrefab,
